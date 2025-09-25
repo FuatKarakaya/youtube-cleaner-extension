@@ -1,0 +1,3 @@
+remove * from youtube link
+nothing works when the icon is clicked
+the script only works once

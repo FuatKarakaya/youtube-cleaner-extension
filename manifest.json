@@ -1,0 +1,25 @@
+{
+	"manifest_version": 3,
+	"name": "Youtube Cleaner",
+	"description": "keep em fresh",
+	"version": "1.0",
+	"action": {
+		"default_icon": {
+			"16": "images/anka-16.png",
+			"32": "images/anka-32.png",
+			"48": "images/anka-48.png",
+			"128": "images/anka-128.png",
+			"1024": "images/anka-1024.png"
+		}
+	},
+	"background": {
+		"service_worker": "background.js"
+	},
+	"permissions": ["storage"],
+	"content_scripts": [
+	{
+		"matches": ["https://www.youtube.com/*"],
+		"js": ["cleaner.js"],
+		"run_at": "document_idle"
+	}]
+}
