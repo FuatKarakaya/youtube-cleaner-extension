@@ -1,4 +1,4 @@
-const MAX_VIEWS = 2; 
+const MAX_VIEW_LIMIT = 2; 
 
 const storage = chrome.storage.local;
 
@@ -18,35 +18,37 @@ function getVideoIdFromHref(href) {
     return idSegment || null;
 }
 
-async function processVideos() {
+// run it for each video ytd-rich-item-renderer tag
+function processVideoElement(itemRenderer, videoHistory, hiddenVideos) {
+    const linkElement = itemRenderer.querySelector('a[href^="/watch?v="]');
+    if (!linkElement) return;
+    
+    const videoId = getVideoIdFromHref(linkElement.getAttribute('href'));
+    
+    if (videoId) {
+        const currentViews = videoHistory[videoId] || 0;
+        if (currentViews >= MAX_VIEW_LIMIT) {
+            itemRenderer.style.display = 'none';
+            hiddenVideos[videoId] = true;
+        }
+        videoHistory[videoId] = currentViews + 1;
+    }
+}
 
+
+async function processVideos() {
     const r = await storage.get(["counter", "hidden"]);
     const videoHistory = r["counter"] || {};
     const hiddenVideos = r["hidden"] || {};
 
     const videoElements = document.querySelectorAll('ytd-rich-item-renderer');
 
-    const updatedHistory = { ...videoHistory };
     videoElements.forEach(itemRenderer => {
-        // 2. Find the anchor tag with the video link inside the itemRenderer
-        const linkElement = itemRenderer.querySelector('a[href^="/watch?v="]');
-        
-        if (!linkElement) return; // Skip if the video link isn't found
-        const videoId = getVideoIdFromHref(linkElement.getAttribute('href'));
-        
-        if (videoId) {
-            const currentViews = updatedHistory[videoId] || 0;
-
-            if (currentViews >= MAX_VIEWS) {
-                itemRenderer.style.display = 'none';
-                hiddenVideos[videoId] = true;
-            }
-            updatedHistory[videoId] = currentViews + 1;
-        }
+        processVideoElement(itemRenderer, videoHistory, hiddenVideos);
     });
 
     await storage.set({ 
-        "counter": updatedHistory,
+        "counter": videoHistory,
         "hidden": hiddenVideos
     });
 }

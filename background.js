@@ -1,10 +1,10 @@
+//NOT WORKING: Probably becasue Notification API requires user permission, which is not granted by default in extensions.
 chrome.action.onClicked.addListener(async (tab) => {
     const result = await chrome.storage.local.get("hidden");
     const hiddenVideos = result["hidden"] || {};
     const count = Object.keys(hiddenVideos).length;
 
     //Send a notification to the user
-
     // Use the current time to ensure the notification ID is unique
     const notificationId = 'cleaner-status-' + Date.now(); 
     const message = `${count} videos are banned.`;
