@@ -1,6 +1,6 @@
 remove * from youtube link
 nothing works when the icon is clicked
-the script only works once
+if video is stored in hidden remove from viewHistory
 
 
 run for loaded videos:

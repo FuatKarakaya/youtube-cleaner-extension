@@ -1,6 +1,10 @@
-const MAX_VIEW_LIMIT = 2; 
+const MAX_VIEW_LIMIT = 2;
+const TAG_NAME = 'ytd-rich-item-renderer';
 
 const storage = chrome.storage.local;
+const videoHistory = {};
+const hiddenVideos = {};
+
 
 function getVideoIdFromHref(href) {
     if (!href || href.length <= 9) {
@@ -18,7 +22,6 @@ function getVideoIdFromHref(href) {
     return idSegment || null;
 }
 
-// run it for each video ytd-rich-item-renderer tag
 function processVideoElement(itemRenderer, videoHistory, hiddenVideos) {
     const linkElement = itemRenderer.querySelector('a[href^="/watch?v="]');
     if (!linkElement) return;
@@ -32,31 +35,86 @@ function processVideoElement(itemRenderer, videoHistory, hiddenVideos) {
             hiddenVideos[videoId] = true;
         }
         videoHistory[videoId] = currentViews + 1;
+        //currentViews tracks how many times the video has came into view regardless of hiding
     }
 }
+///// Intersection Observer setup
+const intersectionOptions = {
+    root: null, // The viewport
+    rootMargin: '0px',
+    threshold: 1.0 // 100% visibility required
+};
+const intersectionObserverCallback = (entries, observer) => {
+    entries.forEach(entry => {
+        const tag = entry.target;
 
+        // Check if the element is 100% visible
+        if (entry.isIntersecting && entry.intersectionRatio === 1.0) {          
+            processVideoElement(tag, videoHistory, hiddenVideos);
+            observer.unobserve(tag);
+        }
+    });
+};
+const visibilityObserver = new IntersectionObserver(intersectionObserverCallback, intersectionOptions);
 
-async function processVideos() {
-    const r = await storage.get(["counter", "hidden"]);
-    const videoHistory = r["counter"] || {};
-    const hiddenVideos = r["hidden"] || {};
+///// Mutation Observer setup
+const mutationObserverCallback = (mutationsList, observer) => {
+    for (const mutation of mutationsList) {
+        if (mutation.type === 'childList') {
+            // Iterate over all newly added nodes
+            mutation.addedNodes.forEach(node => {
+                if (node.nodeType === 1 && node.tagName === TAG_NAME) {
+                    // Start tracking the new element
+                    visibilityObserver.observe(node);
+                }
+            });
+        }
+    }
+};
+const domChangeObserver = new MutationObserver(mutationObserverCallback);
 
-    const videoElements = document.querySelectorAll('ytd-rich-item-renderer');
+function monitorParent(parentDiv) {
+    if (!parentDiv || parentDiv.nodeType !== 1) {
+        console.error("Monitor: Invalid parent DOM element provided.");
+        return;
+    }
 
-    videoElements.forEach(itemRenderer => {
-        processVideoElement(itemRenderer, videoHistory, hiddenVideos);
+    const initialTags = parentDiv.querySelectorAll(TAG_NAME);
+    
+    initialTags.forEach(tag => {
+        visibilityObserver.observe(tag);
     });
 
+    const mutationOptions = { 
+        childList: true, // Watch for children being added or removed
+        subtree: false // Only watch direct children important for performance
+    };
+
+    domChangeObserver.observe(parentDiv, mutationOptions);
+    console.log("Mutation Observer started on parent tag.");
+}
+
+async function initApp() {
+    const storageData = await storage.get(["counter", "hidden"]);
+    videoHistory = storageData["counter"] || {};
+    hiddenVideos = storageData["hidden"] || {};
+
+    window.addEventListener('load', () => {
+        const parentDiv = document.getElementById('contents');
+        monitorParent(parentDiv);
+    });
+}
+
+initApp();
+
+// Save state before the page unloads
+window.onbeforeunload = async () => {
+    console.log("Saving state before unload...");
     await storage.set({ 
         "counter": videoHistory,
         "hidden": hiddenVideos
     });
+    console.log("State saved.");
+    visibilityObserver.disconnect();
+    domChangeObserver.disconnect();
 }
-
-// Ensure the script runs only when the DOM is fully loaded and ready
-// The content script runs on page load, but we wait a short moment for YouTube's
-// dynamic content to fully render
-window.onload = () => {
-    // Use a slight delay to ensure dynamic content has loaded
-    setTimeout(processVideos, 1500);
-};
