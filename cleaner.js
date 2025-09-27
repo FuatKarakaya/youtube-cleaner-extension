@@ -5,13 +5,12 @@ const storage = chrome.storage.local;
 let videoHistory = {};
 let hiddenVideos = {};
 let c= 0;//debug
+let storageShouldBeUpdated = false;
     
 //debug
 function debug(str){
     document.getElementById("center").getElementsByTagName("input")[0].placeholder=str;
 }
-
-
 
 function getVideoIdFromHref(href) {
     if (!href || href.length <= 9) {
@@ -44,6 +43,7 @@ function processVideoElement(itemRenderer, videoHistory, hiddenVideos) {
             hiddenVideos[videoId] = true;
         }
         videoHistory[videoId] = currentViews + 1;
+        storageShouldBeUpdated=true;
         //currentViews tracks how many times the video has came into view regardless of hiding
     }
 }
@@ -70,10 +70,8 @@ const visibilityObserver = new IntersectionObserver(intersectionObserverCallback
 const mutationObserverCallback = (mutationsList, observer) => {
     for (const mutation of mutationsList) {
         if (mutation.type === 'childList') {
-            // Iterate over all newly added nodes
             mutation.addedNodes.forEach(node => {
-                if (node.nodeType === 1 && node.tagName === TAG_NAME) {
-                    // Start tracking the new element
+                if (node.nodeType === 1 && node.tagName.toLowerCase() === TAG_NAME) {
                     visibilityObserver.observe(node);
                 }
             });
@@ -84,6 +82,7 @@ const domChangeObserver = new MutationObserver(mutationObserverCallback);
 
 function monitorParent(parentDiv) {
     if (!parentDiv || parentDiv.nodeType !== 1) {
+        console.log(parentDiv);
         console.error("Monitor: Invalid parent DOM element provided.");
         return;
     }
@@ -100,27 +99,31 @@ function monitorParent(parentDiv) {
     };
 
     domChangeObserver.observe(parentDiv, mutationOptions);
-    console.log("Mutation Observer started on parent tag.");
 }
 
 async function initApp() {
-    debug("Water, Mr. Rango");
     const storageData = await storage.get(["counter", "hidden"]);
     videoHistory = storageData["counter"] || {};
     hiddenVideos = storageData["hidden"] || {};
-    debug("Running MonitorParent")
     const parentDiv = document.getElementById('contents');
     monitorParent(parentDiv);
 }
 
 setTimeout(initApp, 1000);
 const UpdateStorage = async() => {
-    try {
-        await storage.set({ 
-            "counter": videoHistory,
-            "hidden": hiddenVideos
-        });
-    }catch{}
+    if(storageShouldBeUpdated){
+        try {
+            await storage.set({ 
+                "counter": videoHistory,
+                "hidden": hiddenVideos
+            });
+            storageShouldBeUpdated = false;
+        }catch(e){
+            console.log("Failed to Update")
+            console.error(e)
+        }
+    }
+    
 }
 
 setInterval(UpdateStorage, 3000);
@@ -131,6 +134,7 @@ window.addEventListener('beforeunload', () => {
     domChangeObserver.disconnect();
 });
 
+//depricated
 window.addEventListener('unload', () => {
     visibilityObserver.disconnect();
     domChangeObserver.disconnect();
