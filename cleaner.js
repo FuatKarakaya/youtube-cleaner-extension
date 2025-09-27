@@ -2,8 +2,15 @@ const MAX_VIEW_LIMIT = 2;
 const TAG_NAME = 'ytd-rich-item-renderer';
 
 const storage = chrome.storage.local;
-const videoHistory = {};
-const hiddenVideos = {};
+let videoHistory = {};
+let hiddenVideos = {};
+let c= 0;//debug
+    
+//debug
+function debug(str){
+    document.getElementById("center").getElementsByTagName("input")[0].placeholder=str;
+}
+
 
 
 function getVideoIdFromHref(href) {
@@ -23,6 +30,8 @@ function getVideoIdFromHref(href) {
 }
 
 function processVideoElement(itemRenderer, videoHistory, hiddenVideos) {
+    c++;//debug
+    debug(c)
     const linkElement = itemRenderer.querySelector('a[href^="/watch?v="]');
     if (!linkElement) return;
     
@@ -95,26 +104,34 @@ function monitorParent(parentDiv) {
 }
 
 async function initApp() {
+    debug("Water, Mr. Rango");
     const storageData = await storage.get(["counter", "hidden"]);
     videoHistory = storageData["counter"] || {};
     hiddenVideos = storageData["hidden"] || {};
-
-    window.addEventListener('load', () => {
-        const parentDiv = document.getElementById('contents');
-        monitorParent(parentDiv);
-    });
+    debug("Running MonitorParent")
+    const parentDiv = document.getElementById('contents');
+    monitorParent(parentDiv);
 }
 
-initApp();
+setTimeout(initApp, 1000);
+const UpdateStorage = async() => {
+    try {
+        await storage.set({ 
+            "counter": videoHistory,
+            "hidden": hiddenVideos
+        });
+    }catch{}
+}
 
-// Save state before the page unloads
-window.onbeforeunload = async () => {
-    console.log("Saving state before unload...");
-    await storage.set({ 
-        "counter": videoHistory,
-        "hidden": hiddenVideos
-    });
-    console.log("State saved.");
+setInterval(UpdateStorage, 3000);
+
+// Clean up observers on page unload
+window.addEventListener('beforeunload', () => {
     visibilityObserver.disconnect();
     domChangeObserver.disconnect();
-}
+});
+
+window.addEventListener('unload', () => {
+    visibilityObserver.disconnect();
+    domChangeObserver.disconnect();
+});
